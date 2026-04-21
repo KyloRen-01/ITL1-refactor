@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Post } from "@/types/post";
-import { supabase } from "@/lib/supabase";
 import {
-  createUser,
+  deleteCommentById,
+  fetchAllComments,
   fetchPostsByAuthor,
-  fetchUser,
-  fetchUserByEmail,
+  setCommentApproval,
 } from "@/lib/db";
 import PostManager from "@/components/PostManager";
 import { Button } from "@/components/ui/button";
@@ -63,32 +62,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [actioningId, setActioningId] = useState<string | null>(null);
 
   const resolveAuthorId = useCallback(async () => {
-    let authorId = userId;
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    try {
-      await fetchUser(userId);
-    } catch (err) {
-      if (user?.email) {
-        try {
-          const existing = await fetchUserByEmail(user.email);
-          authorId = existing.id;
-        } catch (fetchErr) {
-          const created = await createUser(
-            userId,
-            user.email,
-            typeof user.user_metadata?.name === "string"
-              ? user.user_metadata.name
-              : undefined,
-          );
-          authorId = created.id;
-        }
-      }
-    }
-
-    return authorId;
+    return userId;
   }, [userId]);
 
   const fetchPosts = useCallback(async () => {
@@ -107,12 +81,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   const fetchComments = useCallback(async () => {
     setLoadingComments(true);
     try {
-      const { data, error } = await supabase.functions.invoke("manage-posts", {
-        body: { action: "list_all_comments" },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      setComments(data.data || []);
+      const data = await fetchAllComments();
+      setComments(data || []);
     } catch (err) {
       console.error("Failed to fetch comments:", err);
     } finally {
@@ -131,9 +101,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const handleApproveComment = async (id: string, approve: boolean) => {
     setActioningId(id);
     try {
-      await supabase.functions.invoke("manage-posts", {
-        body: { action: "approve_comment", id, is_approved: approve },
-      });
+      await setCommentApproval(id, approve);
       fetchComments();
     } catch (err) {
       console.error("Failed to approve comment:", err);
@@ -145,9 +113,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const handleDeleteComment = async (id: string) => {
     setActioningId(id);
     try {
-      await supabase.functions.invoke("manage-posts", {
-        body: { action: "delete_comment", id },
-      });
+      await deleteCommentById(id);
       fetchComments();
     } catch (err) {
       console.error("Failed to delete comment:", err);

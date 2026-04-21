@@ -8,8 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/lib/supabase";
-import { createUser } from "@/lib/db";
+import { signInLocal, signInWithMagicLocal, signUpLocal } from "@/lib/db";
 import { Mail, Lock, Loader2, ArrowRight, User } from "lucide-react";
 
 interface AuthModalProps {
@@ -30,17 +29,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onClose, onSuccess }) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setSuccess("");
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      setError(error.message);
-    } else {
+    try {
+      await signInLocal(email, password);
       onSuccess();
       onClose();
+    } catch (err: any) {
+      setError(err?.message || "Unable to sign in.");
     }
     setLoading(false);
   };
@@ -49,20 +45,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onClose, onSuccess }) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setSuccess("");
 
-    const { data, error } = await supabase.auth.signUp({ email, password });
-
-    if (error) {
-      setError(error.message);
-    } else if (data.user) {
-      // Create user record in public.users table
-      try {
-        await createUser(data.user.id, email);
-      } catch (err) {
-        console.error("Failed to create user profile:", err);
-      }
-      setSuccess("Account created! You can now sign in.");
-      setMode("login");
+    try {
+      await signUpLocal(email, password);
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || "Unable to create account.");
     }
     setLoading(false);
   };
@@ -71,13 +61,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onClose, onSuccess }) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setSuccess("");
 
-    const { error } = await supabase.auth.signInWithOtp({ email });
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setSuccess("Check your email for the magic link!");
+    try {
+      await signInWithMagicLocal(email);
+      setSuccess("Signed in with local magic mode.");
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(err?.message || "Unable to use magic mode.");
     }
     setLoading(false);
   };
@@ -105,7 +97,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ open, onClose, onSuccess }) => {
               ? "Sign in to access the admin dashboard"
               : mode === "signup"
                 ? "Create your admin account"
-                : "We'll send you a login link"}
+                : "Quick sign-in for static mode"}
           </DialogDescription>
         </DialogHeader>
 

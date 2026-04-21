@@ -1,14 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 
 import { Post } from "@/types/post";
-import {
-  createPost,
-  createUser,
-  fetchUser,
-  fetchUserByEmail,
-  updatePost,
-} from "@/lib/db";
-import { supabase } from "@/lib/supabase";
+import { createPost, updatePost } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -145,31 +138,6 @@ const PostEditor: React.FC<PostEditorProps> = ({
     setError("");
 
     try {
-      let authorId = userId;
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      try {
-        await fetchUser(userId);
-      } catch (err) {
-        if (user?.email) {
-          try {
-            const existing = await fetchUserByEmail(user.email);
-            authorId = existing.id;
-          } catch (fetchErr) {
-            const created = await createUser(
-              userId,
-              user.email,
-              typeof user.user_metadata?.name === "string"
-                ? user.user_metadata.name
-                : undefined,
-            );
-            authorId = created.id;
-          }
-        }
-      }
-
       const slug = title
         .trim()
         .toLowerCase()
@@ -188,7 +156,7 @@ const PostEditor: React.FC<PostEditorProps> = ({
         reading_time: readingTime,
         slug,
         is_hidden: false,
-        author_id: authorId,
+        author_id: userId,
         ...(isAdmin && publishAtLocal
           ? { created_at: new Date(publishAtLocal).toISOString() }
           : {}),

@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
-import { User } from "@supabase/supabase-js";
 import { Post } from "@/types/post";
 import {
-  createUser,
+  getCurrentSessionUser,
   fetchPosts,
-  fetchAllPosts,
   fetchPostById,
   fetchUser,
+  signOutLocal,
+  SessionUser,
 } from "@/lib/db";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -21,7 +20,7 @@ import ProfilePage from "@/components/ProfilePage";
 
 const AppLayout: React.FC = () => {
   // Auth state
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<Awaited<
     ReturnType<typeof fetchUser>
@@ -36,19 +35,9 @@ const AppLayout: React.FC = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Auth listener
+  // Local session bootstrap
   useEffect(() => {
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
+    setUser(getCurrentSessionUser());
   }, []);
 
   useEffect(() => {
@@ -61,25 +50,6 @@ const AppLayout: React.FC = () => {
       try {
         const profile = await fetchUser(user.id);
         setUserProfile(profile);
-        return;
-      } catch (err) {
-        // If the user record does not exist, create it so post inserts pass FK.
-      }
-
-      if (!user.email) {
-        setUserProfile(null);
-        return;
-      }
-
-      try {
-        const created = await createUser(
-          user.id,
-          user.email,
-          typeof user.user_metadata?.name === "string"
-            ? user.user_metadata.name
-            : undefined,
-        );
-        setUserProfile(created);
       } catch (err) {
         setUserProfile(null);
       }
@@ -153,18 +123,10 @@ const AppLayout: React.FC = () => {
 
   // Logout handler
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await signOutLocal();
     setUser(null);
+    setUserProfile(null);
     setCurrentPage("home");
-    // Clear all browser storage to remove persisted credentials
-    localStorage.clear();
-    sessionStorage.clear();
-    // Clear all cookies if any auth cookies exist
-    document.cookie.split(";").forEach((c) => {
-      document.cookie = c
-        .replace(/^ +/, "")
-        .replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
-    });
   };
 
   // Post saved handler
@@ -295,6 +257,7 @@ const AppLayout: React.FC = () => {
         open={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         onSuccess={() => {
+          setUser(getCurrentSessionUser());
           setAuthModalOpen(false);
           fetchPublicPosts();
         }}

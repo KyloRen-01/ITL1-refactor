@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { User } from "@supabase/supabase-js";
 import { Post } from "@/types/post";
 import {
   fetchUser,
+  SessionUser,
   updateUserProfile,
   fetchPostsByAuthor,
   fetchUserByEmail,
@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 
 interface ProfilePageProps {
-  user: User;
+  user: SessionUser;
   onReadMore: (postId: string) => void;
 }
 

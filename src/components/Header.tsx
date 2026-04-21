@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { User } from "@supabase/supabase-js";
+import { SessionUser } from "@/lib/db";
 import {
   Menu,
   X,
@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 interface HeaderProps {
-  user: User | null;
+  user: SessionUser | null;
   userAvatarUrl?: string | null;
   currentPage: string;
   onNavigate: (page: string) => void;
