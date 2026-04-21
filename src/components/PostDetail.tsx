@@ -36,7 +36,22 @@ interface PostDetailProps {
   post: Post;
   onBack: () => void;
 }
+const toParagraphBlocks = (raw: string) => {
+  const normalized = raw
+    .replace(/\r\n/g, "\n")
+    .replace(/([.!?])(?=[A-Z])/g, "$1\n\n")
+    .replace(
+      /\s+(Moreover|Furthermore|However|Therefore|Thus|Consequently|Meanwhile|First|Second|Third|Finally|In addition)\b/g,
+      "\n\n$1",
+    )
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 
+  return normalized
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+};
 const PostDetail: React.FC<PostDetailProps> = ({ post, onBack }) => {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -156,7 +171,7 @@ const PostDetail: React.FC<PostDetailProps> = ({ post, onBack }) => {
   const publisherAvatar = post.users?.avatar_url || null;
 
   const renderContent = (content: string) => {
-    return content.split("\n").map((paragraph, i) => {
+    return toParagraphBlocks(content).map((paragraph, i) => {
       if (!paragraph.trim()) return <br key={i} />;
       if (paragraph.startsWith("# "))
         return (

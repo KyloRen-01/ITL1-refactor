@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   comments: "itl1_comments",
   authAccounts: "itl1_auth_accounts",
   session: "itl1_auth_session",
+  seedFingerprint: "itl1_seed_fingerprint",
 } as const;
 
 export interface LocalUserProfile {
@@ -42,6 +43,11 @@ interface Comment {
 
 type SeedPostInput = Partial<Post> & {
   title?: string;
+};
+
+type SeedLoadResult = {
+  posts: Post[];
+  fingerprint: string | null;
 };
 
 const isBrowser = typeof window !== "undefined";
@@ -112,22 +118,28 @@ function writeStorage<T>(key: string, value: T) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-async function loadSeedPosts(): Promise<Post[]> {
-  if (!isBrowser) return [];
+async function loadSeedPosts(): Promise<SeedLoadResult> {
+  if (!isBrowser) return { posts: [], fingerprint: null };
+
   try {
     const urls = ["/seed-posts.json", "./seed-posts.json"];
     let data: unknown = [];
+    let rawSeed = "";
 
     for (const url of urls) {
       const response = await fetch(url, { cache: "no-store" });
       if (!response.ok) continue;
-      data = await response.json();
+
+      rawSeed = await response.text();
+      data = JSON.parse(rawSeed);
       break;
     }
 
-    if (!Array.isArray(data)) return [];
+    if (!Array.isArray(data)) {
+      return { posts: [], fingerprint: rawSeed.trim() || null };
+    }
 
-    return data
+    const posts = data
       .filter((entry): entry is SeedPostInput => {
         return (
           typeof entry === "object" &&
@@ -201,36 +213,58 @@ async function loadSeedPosts(): Promise<Post[]> {
                   : content.slice(0, 160)) || "No excerpt available.",
         };
       });
+
+    return { posts, fingerprint: rawSeed.trim() || null };
   } catch {
-    return [];
+    return { posts: [], fingerprint: null };
   }
 }
 
 async function ensurePostsInitialized() {
   if (!isBrowser) return;
 
-  let existingPosts: Post[] | null = null;
+  let existingPosts: Post[] = [];
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.posts);
-    if (raw !== null) {
+    if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        existingPosts = parsed as Post[];
-      }
+      if (Array.isArray(parsed)) existingPosts = parsed as Post[];
     }
   } catch {
-    existingPosts = null;
+    existingPosts = [];
   }
 
-  if (existingPosts && existingPosts.length > 0) return;
+  const existingFingerprint = localStorage.getItem(
+    STORAGE_KEYS.seedFingerprint,
+  );
 
   if (!seedInitializationPromise) {
     seedInitializationPromise = (async () => {
-      const seedPosts = await loadSeedPosts();
-      if (seedPosts.length > 0) {
-        writeStorage(STORAGE_KEYS.posts, sortByNewest(seedPosts));
-      } else if (!existingPosts) {
-        writeStorage(STORAGE_KEYS.posts, []);
+      const { posts: seedPosts, fingerprint } = await loadSeedPosts();
+
+      if (seedPosts.length === 0) {
+        if (existingPosts.length === 0) {
+          writeStorage(STORAGE_KEYS.posts, []);
+        }
+        return;
+      }
+
+      const shouldSync =
+        existingPosts.length === 0 ||
+        !existingFingerprint ||
+        existingFingerprint !== fingerprint;
+
+      if (!shouldSync) return;
+
+      const seedIds = new Set(seedPosts.map((p) => p.id));
+      const localOnlyPosts = existingPosts.filter((p) => !seedIds.has(p.id));
+
+      savePosts([...seedPosts, ...localOnlyPosts]);
+
+      if (fingerprint) {
+        localStorage.setItem(STORAGE_KEYS.seedFingerprint, fingerprint);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.seedFingerprint);
       }
     })().finally(() => {
       seedInitializationPromise = null;
