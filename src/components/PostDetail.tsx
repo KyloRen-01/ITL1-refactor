@@ -37,8 +37,19 @@ interface PostDetailProps {
   onBack: () => void;
 }
 const toParagraphBlocks = (raw: string) => {
-  const normalized = raw
-    .replace(/\r\n/g, "\n")
+  const text = raw.replace(/\r\n/g, "\n").trim();
+
+  // Content with its own line breaks is already split into paragraphs.
+  if (text.includes("\n")) {
+    return text
+      .split(/\n+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+  }
+
+  // Older essays were pasted as one long line with sentences run together
+  // ("identity.Moreover"), so guess where the paragraphs break.
+  const normalized = text
     .replace(/([.!?])(?=[A-Z])/g, "$1\n\n")
     .replace(
       /\s+(Moreover|Furthermore|However|Therefore|Thus|Consequently|Meanwhile|First|Second|Third|Finally|In addition)\b/g,
